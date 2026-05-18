@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.database import init_db
 from app.routers.auth import router as auth_router
 from app.routers.users import router as users_router
+from app.routers.social import router as social_router
 
 
 @asynccontextmanager
@@ -18,6 +19,7 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(social_router)
 
 
 @app.get("/")

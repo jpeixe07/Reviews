@@ -7,6 +7,10 @@ from app.models.user import User
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.password_reset_token import PasswordResetToken
 
+from app.models.block import Block
+from app.models.friend_request import FriendRequest
+from app.models.friendship import Friendship
+
 
 client = AsyncIOMotorClient(
     settings.mongodb_url,
@@ -20,7 +24,14 @@ database = client[settings.mongodb_db]
 async def init_db():
     await init_beanie(
         database=database,
-        document_models=[User, EmailVerificationToken, PasswordResetToken],
+        document_models=[
+        User,
+        EmailVerificationToken,
+        PasswordResetToken,
+        FriendRequest,
+        Friendship,
+        Block,
+    ],
     )
 
     indexes = await database["email_verification_tokens"].index_information()
