@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-
+from enum import Enum
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -47,3 +47,33 @@ class EmailTokenRequest(BaseModel):
 
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
+
+class ListStatus(str, Enum):
+    read = "read"
+    watched = "watched"
+    dropped = "dropped"
+
+
+class UserListItemCreate(BaseModel):
+    item_id: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=255)
+    media_type: str = Field(min_length=1, max_length=50)
+    status: ListStatus
+
+
+class UserListItemMove(BaseModel):
+    status: ListStatus
+
+
+class UserListItemResponse(BaseModel):
+    item_id: str
+    title: str
+    media_type: str
+    status: ListStatus
+    added_at: datetime
+
+
+class UserListsResponse(BaseModel):
+    read: list[UserListItemResponse]
+    watched: list[UserListItemResponse]
+    dropped: list[UserListItemResponse]

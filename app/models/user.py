@@ -1,8 +1,23 @@
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 from beanie import Document, Indexed
-from pydantic import EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field
+
+
+class ListStatus(str, Enum):
+    read = "read"
+    watched = "watched"
+    dropped = "dropped"
+
+
+class UserListItem(BaseModel):
+    item_id: str
+    title: str = Field(min_length=1, max_length=255)
+    media_type: str = Field(min_length=1, max_length=50)
+    status: ListStatus
+    added_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class User(Document):
@@ -15,6 +30,7 @@ class User(Document):
     is_active: bool = True
     is_verified: bool = False
     is_private: bool = False
+    list_items: list[UserListItem] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:

@@ -1,8 +1,16 @@
 from fastapi import APIRouter, Depends
 
 from app.dependencies.auth import get_current_user
-from app.schemas.user import MessageResponse, UserResponse, UserUpdate
+from app.schemas.user import (
+    MessageResponse,
+    UserListItemCreate,
+    UserListItemMove,
+    UserListsResponse,
+    UserResponse,
+    UserUpdate,
+)
 from app.services.auth_service import AuthService
+from app.services.user_service import UserService
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -37,3 +45,36 @@ async def update_me(data: UserUpdate, current_user=Depends(get_current_user)):
 async def delete_me(current_user=Depends(get_current_user)):
     await AuthService.deactivate_user(current_user)
     return {"message": "Conta desativada com sucesso"}
+
+
+@router.post("/me/lists/items", response_model=MessageResponse)
+async def add_list_item(
+    data: UserListItemCreate,
+    current_user=Depends(get_current_user),
+):
+    await UserService.add_list_item(current_user, data)
+    return {"message": "Item adicionado à lista com sucesso"}
+
+
+@router.patch("/me/lists/items/{item_id}", response_model=MessageResponse)
+async def move_list_item(
+    item_id: str,
+    data: UserListItemMove,
+    current_user=Depends(get_current_user),
+):
+    await UserService.move_list_item(current_user, item_id, data)
+    return {"message": "Item movido de lista com sucesso"}
+
+
+@router.delete("/me/lists/items/{item_id}", response_model=MessageResponse)
+async def remove_list_item(
+    item_id: str,
+    current_user=Depends(get_current_user),
+):
+    await UserService.remove_list_item(current_user, item_id)
+    return {"message": "Item removido da lista com sucesso"}
+
+
+@router.get("/me/lists", response_model=UserListsResponse)
+async def get_my_lists(current_user=Depends(get_current_user)):
+    return await UserService.get_grouped_lists(current_user)
