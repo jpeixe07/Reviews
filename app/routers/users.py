@@ -1,13 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends
 
-from app.core.security import decode_access_token
+from app.dependencies.auth import get_current_user
 from app.schemas.user import MessageResponse, UserResponse, UserUpdate
 from app.services.auth_service import AuthService
 
-router = APIRouter(prefix="/users", tags=["users"])
 
-security = HTTPBearer()
+router = APIRouter(prefix="/users", tags=["users"])
 
 
 def serialize_user(user):
@@ -22,30 +20,6 @@ def serialize_user(user):
         is_private=user.is_private,
         created_at=user.created_at,
     )
-
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-):
-    token = credentials.credentials
-    payload = decode_access_token(token)
-
-    email = payload.get("sub")
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido",
-        )
-
-    user = await AuthService.get_user_by_email(email)
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="A conta está inativa",
-        )
-
-    return user
 
 
 @router.get("/me", response_model=UserResponse)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, HTTPException
 
 from app.schemas.user import (
     MessageResponse,
@@ -11,6 +11,8 @@ from app.services.auth_service import AuthService
 from app.services.email_verification_service import EmailVerificationService
 from app.schemas.user import EmailTokenRequest, ResendVerificationRequest
 from fastapi.responses import HTMLResponse
+from app.schemas.password_reset import ForgotPasswordRequest, ResetPasswordRequest
+from app.services.password_reset_service import PasswordResetService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -60,6 +62,50 @@ async def resend_verification_email(data: ResendVerificationRequest):
     await EmailVerificationService.resend(data.email)
     return {"message": "E-mail de verificação reenviado com sucesso"}
 
+@router.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(data: ForgotPasswordRequest):
+    await PasswordResetService.request_reset(data.email)
+    return {
+        "message": "Se o e-mail estiver cadastrado, você receberá um link em instantes"
+    }
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(data: ResetPasswordRequest):
+    await PasswordResetService.reset_password(data.token, data.new_password)
+    return {"message": "Sua senha foi redefinida com sucesso!"}
+
+
+@router.get("/reset-password-link", response_class=HTMLResponse)
+async def reset_password_link(token: str):
+    try:
+        await PasswordResetService.validate_reset_token(token)
+        return f"""
+        <html>
+            <head><title>Link válido</title></head>
+            <body style="font-family: Arial, sans-serif; padding: 40px;">
+                <h2>Link de recuperação válido ✅</h2>
+                <p>Agora envie a nova senha para o endpoint de redefinição usando esse token.</p>
+                <p>Token:</p>
+                <code>{token}</code>
+            </body>
+        </html>
+        """
+    except HTTPException as e:
+        return HTMLResponse(
+            content=f"""
+            <html>
+                <head><title>Link inválido</title></head>
+                <body style="font-family: Arial, sans-serif; padding: 40px;">
+                    <h2>Não foi possível continuar ❌</h2>
+                    <p>{e.detail}</p>
+                    <p>Solicite um novo link de recuperação.</p>
+                </body>
+            </html>
+            """,
+            status_code=e.status_code,
+        )
+
 @router.get("/verify-email-link", response_class=HTMLResponse)
 async def verify_email_link(token: str):
     try:
@@ -86,3 +132,5 @@ async def verify_email_link(token: str):
             """,
             status_code=e.status_code,
         )
+
+    

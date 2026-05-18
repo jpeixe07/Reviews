@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     backend_url: str = "http://127.0.0.1:8000"
 
-    frontend_url: str
 
     smtp_host: str
     smtp_port: int = 587
@@ -22,6 +21,7 @@ class Settings(BaseSettings):
     smtp_from: str
 
     email_verification_expire_hours: int = 24
+    password_reset_expire_hours: int = 2
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
