@@ -11,7 +11,6 @@ from fastapi import HTTPException
 
 from app.core.security import hash_password
 from app.db.models import (
-    AuditLog,
     CatalogContributor,
     Comment,
     News,
@@ -19,6 +18,7 @@ from app.db.models import (
     User,
 )
 from app.schemas.admin import ContributorCreate, NewsCreate, UserCreate, UserUpdate
+from app.services.audit_service import AuditService
 
 
 def requires_superadmin_to_create(role: str) -> bool:
@@ -34,17 +34,6 @@ def is_privileged_target(role: str) -> bool:
 def contributor_name_is_valid(name: Optional[str]) -> bool:
     """A catalog contributor must have a non-blank name (rule R5)."""
     return bool((name or "").strip())
-
-
-async def _audit(actor: str, action: str, target_type: str,
-                 target: Optional[str] = None, metadata: Optional[dict] = None) -> None:
-    await AuditLog(
-        actor=actor,
-        action=action,
-        target_type=target_type,
-        target=target,
-        metadata=metadata or {},
-    ).insert()
 
 
 class AdminService:
@@ -66,7 +55,7 @@ class AdminService:
             role=data.role,
         )
         await user.insert()
-        await _audit(actor["username"], "create_user", "user", data.username)
+        await AuditService.record(actor["username"], "create_user", "user", data.username)
         return user
 
     @staticmethod
@@ -81,7 +70,7 @@ class AdminService:
         if data.username:
             user.username = data.username
         await user.save()
-        await _audit(actor["username"], "update_user", "user", user.username, metadata)
+        await AuditService.record(actor["username"], "update_user", "user", user.username, metadata)
         return user
 
     @staticmethod
@@ -99,7 +88,7 @@ class AdminService:
         async for comment in Comment.find(Comment.author == user.username):
             await comment.delete()
         await user.delete()
-        await _audit(actor["username"], "delete_user", "user", user.username, {"cascade": True})
+        await AuditService.record(actor["username"], "delete_user", "user", user.username, {"cascade": True})
 
     @staticmethod
     async def ban_user(actor: dict, user_id: str, reason: Optional[str]) -> User:
@@ -112,7 +101,7 @@ class AdminService:
         async for post in Post.find(Post.owner == user.username):
             post.hidden = True
             await post.save()
-        await _audit(actor["username"], "ban_user", "user", user.username, {"reason": reason})
+        await AuditService.record(actor["username"], "ban_user", "user", user.username, {"reason": reason})
         return user
 
     @staticmethod
@@ -126,7 +115,7 @@ class AdminService:
         async for post in Post.find(Post.owner == user.username):
             post.hidden = False
             await post.save()
-        await _audit(actor["username"], "unban_user", "user", user.username)
+        await AuditService.record(actor["username"], "unban_user", "user", user.username)
         return user
 
     # ---- catalog contributors ------------------------------------------
@@ -136,7 +125,7 @@ class AdminService:
             raise HTTPException(status_code=400, detail="name is required")
         contributor = CatalogContributor(name=data.name, role=data.role)
         await contributor.insert()
-        await _audit(actor["username"], "create_artist", "artist", data.name)
+        await AuditService.record(actor["username"], "create_artist", "artist", data.name)
         return contributor
 
     @staticmethod
@@ -150,15 +139,5 @@ class AdminService:
     async def create_news(actor: dict, data: NewsCreate) -> News:
         news = News(title=data.title, body=data.body, tags=data.tags)
         await news.insert()
-        await _audit(actor["username"], "create_news", "news", data.title)
+        await AuditService.record(actor["username"], "create_news", "news", data.title)
         return news
-
-    # ---- audit ----------------------------------------------------------
-    @staticmethod
-    async def query_audit(actor: Optional[str] = None, action: Optional[str] = None) -> list[AuditLog]:
-        query: dict = {}
-        if actor:
-            query["actor"] = actor
-        if action:
-            query["action"] = action
-        return await AuditLog.find(query).to_list()

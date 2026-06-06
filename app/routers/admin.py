@@ -10,6 +10,7 @@ from app.schemas.admin import (
     UserUpdate,
 )
 from app.services.admin_service import AdminService
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -108,5 +109,5 @@ async def query_audit(
     action: str = Query(default=""),
     actor: dict = Depends(require_admin),
 ):
-    entries = await AdminService.query_audit(actor_filter or None, action or None)
+    entries = await AuditService.query(actor_filter or None, action or None)
     return {"data": [_audit_out(a) for a in entries]}
