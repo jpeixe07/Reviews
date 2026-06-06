@@ -4,6 +4,7 @@ class Settings(BaseSettings):
     app_name: str = "Reviews API"
     mongodb_url: str
     mongodb_db: str = "reviews_db"
+    mongodb_tls: bool = True  # Atlas needs TLS; set false for a local/Docker Mongo
 
     jwt_secret: str = "dev-insecure-change-me"
     jwt_algorithm: str = "HS256"

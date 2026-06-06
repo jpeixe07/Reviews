@@ -9,11 +9,13 @@ client = None
 database = None
 
 def get_motor_client():
-    return AsyncIOMotorClient(
-        settings.mongodb_url,
-        tls=True,
-        tlsCAFile=certifi.where(),
-    )
+    if settings.mongodb_tls:
+        return AsyncIOMotorClient(
+            settings.mongodb_url,
+            tls=True,
+            tlsCAFile=certifi.where(),
+        )
+    return AsyncIOMotorClient(settings.mongodb_url)
 
 async def init_db(db=None):
     global client, database
