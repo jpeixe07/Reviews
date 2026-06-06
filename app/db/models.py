@@ -52,6 +52,7 @@ class CatalogContributor(Document):
 
     class Settings:
         name = "contributors"
+        indexes = ["name"]        # speeds prefix-anchored search (RNF05)
 
 
 class News(Document):
