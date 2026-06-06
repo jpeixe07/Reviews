@@ -4,7 +4,11 @@ class Settings(BaseSettings):
     app_name: str = "Reviews API"
     mongodb_url: str
     mongodb_db: str = "reviews_db"
-    
+
+    jwt_secret: str = "dev-insecure-change-me"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60
+
     frontend_url: str = "http://localhost:3000"
     backend_url: str = "http://127.0.0.1:8000"
 

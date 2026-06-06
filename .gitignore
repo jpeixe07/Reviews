@@ -6,3 +6,8 @@ node_modules/
 __pycache__/
 .idea/
 .vscode/
+
+# All Markdown is kept local (planning/agent notes, docs, CONTRIBUTING, PR template, etc.)
+# Only the root README.md is tracked.
+*.md
+!/README.md
