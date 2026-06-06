@@ -10,6 +10,7 @@ describe("users hierarchy (R1)", () => {
     cy.visit("/users");
 
     cy.get("[data-cy=user-username]").type(adminName);
+    cy.get("[data-cy=user-password]").type("adminpass");
     cy.get("[data-cy=user-role]").select("admin");
     cy.get("[data-cy=user-create]").click();
     cy.get(`[data-cy=user-row-${adminName}]`).should("contain", "admin"); // #3

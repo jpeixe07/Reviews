@@ -27,6 +27,7 @@ describe("users CRUD", () => {
     cy.visit("/users");
 
     cy.get("[data-cy=user-username]").type(name);
+    cy.get("[data-cy=user-password]").type("secret123");
     cy.get("[data-cy=user-create]").click();
     cy.get(`[data-cy=user-row-${name}]`).should("exist");
 
@@ -44,6 +45,7 @@ describe("users CRUD", () => {
     cy.visit("/users");
 
     cy.get("[data-cy=user-username]").type(name);
+    cy.get("[data-cy=user-password]").type("secret123");
     cy.get("[data-cy=user-create]").click();
     cy.get(`[data-cy=user-row-${name}]`).should("exist");
 

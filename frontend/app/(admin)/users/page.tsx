@@ -53,7 +53,7 @@ export default function UsersPage() {
       await api.createUser({
         username: form.username,
         email: form.email || undefined,
-        password: form.password || "changeme",
+        password: form.password,
         role: form.role,
       });
       flash(`User "${form.username}" created.`);
@@ -188,7 +188,7 @@ export default function UsersPage() {
               Only a superadmin can create admin accounts (R1).
             </div>
           )}
-          <button type="submit" data-cy="user-create" disabled={!form.username}>
+          <button type="submit" data-cy="user-create" disabled={!form.username || !form.password}>
             Create user
           </button>
         </form>
