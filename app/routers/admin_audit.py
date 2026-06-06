@@ -15,6 +15,7 @@ def _audit_out(a: AuditLog) -> dict:
         "target_type": a.target_type,
         "target": a.target,
         "metadata": a.metadata,
+        "created_at": a.created_at.isoformat(),
     }
 
 
