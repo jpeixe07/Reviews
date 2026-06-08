@@ -1,19 +1,21 @@
+import logging
 from fastapi import APIRouter, Query
 from typing import Literal
 from datetime import datetime, timedelta
 
 from app.db.database import get_database
-from app.schemas.home import HomeResponse, MediaCard, RankingBlock, RankingItem, MediaCard
+from app.schemas.home import HomeResponse, MediaCard, RankingBlock, RankingItem
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def doc_to_card(doc: dict) -> MediaCard:
     return MediaCard(
-        id=str(doc["_id"]),
-        title=doc["title"],
-        type=doc["type"],
-        year=doc["year"],
+        id=str(doc.get("_id", "")),
+        title=doc.get("title", ""),
+        type=doc.get("type", ""),
+        year=doc.get("year", 0),
         poster_url=doc.get("poster_url"),
         avg_score=doc.get("avg_score", 0.0),
         review_count=doc.get("review_count", 0),
@@ -41,41 +43,41 @@ async def get_home(
     - Rankings (Most Viewed, Top Rated, New Arrivals)
     """
     db = get_database()
-
-    # --- period filter ---
     now = datetime.utcnow()
-    date_filter: dict = {}
-    if period == "month":
-        date_filter = {"created_at": {"$gte": now - timedelta(days=30)}}
-    elif period == "year":
-        date_filter = {"created_at": {"$gte": now - timedelta(days=365)}}
 
-    # --- type filter ---
+    # --- Type Filter ---
     type_filter: dict = {}
     if media_type != "all":
         type_filter = {"type": media_type}
 
-    combined_filter = {**date_filter, **type_filter}
+    if period == "all":
+        logger.error("ERROR: trending aggregation bypassed temporal date_filter.")
 
-    # --- Trending (most viewed in the period) ---
-    trending_cursor = db.media.find(combined_filter).sort("view_count", -1).limit(10)
+    # --- Trending ---
+    trending_sort_field = "view_count" if period == "all" else "recent_view_count"
+    
+    trending_cursor = db.media.find(type_filter).sort(trending_sort_field, -1).limit(10)
     trending = [doc_to_card(doc) async for doc in trending_cursor]
 
-    # --- Top Rated (best scores in the period, minimum 50 reviews) ---
-    top_rated_filter = {**combined_filter, "review_count": {"$gte": 50}}
+    # --- Top Rated ---
+    top_rated_filter = {**type_filter, "review_count": {"$gte": 50}}
     top_rated_cursor = db.media.find(top_rated_filter).sort("avg_score", -1).limit(10)
     top_rated = [doc_to_card(doc) async for doc in top_rated_cursor]
 
+    # --- Quórum Logging  ---
+    if len(top_rated) == 0:
+        logger.warning("WARN: top_rated aggregation returned 0 items. Quorum threshold not met for current period.")
+
     # ─── Ranking: Most Viewed ───
-    viewed_cursor = db.media.find(combined_filter).sort("view_count", -1).limit(5)
+    viewed_cursor = db.media.find(type_filter).sort(trending_sort_field, -1).limit(5)
     viewed_items = []
     pos = 1
     async for doc in viewed_cursor:
-        card = doc_to_card(doc)
+        val = doc.get(trending_sort_field, doc.get("view_count", 0))
         viewed_items.append(RankingItem(
             position=pos,
-            media=card,
-            value=format_view_count(doc.get("view_count", 0)),
+            media=doc_to_card(doc),
+            value=format_view_count(val),
         ))
         pos += 1
 
@@ -84,15 +86,14 @@ async def get_home(
     rated_items = []
     pos = 1
     async for doc in rated_cursor:
-        card = doc_to_card(doc)
         rated_items.append(RankingItem(
             position=pos,
-            media=card,
+            media=doc_to_card(doc),
             value=f"{doc.get('avg_score', 0):.1f}",
         ))
         pos += 1
 
-    # --- Ranking: New Arrivals (last 14 days) ---
+    # --- Ranking: New Arrivals ---
     new_filter = {
         **type_filter,
         "created_at": {"$gte": now - timedelta(days=14)},
@@ -101,10 +102,9 @@ async def get_home(
     new_items = []
     pos = 1
     async for doc in new_cursor:
-        card = doc_to_card(doc)
         new_items.append(RankingItem(
             position=pos,
-            media=card,
+            media=doc_to_card(doc),
             value="New",
         ))
         pos += 1
@@ -114,7 +114,7 @@ async def get_home(
     rankings = [
         RankingBlock(title="Most Viewed",  badge=period_label,  items=viewed_items),
         RankingBlock(title="Top Rated",    badge=period_label,  items=rated_items),
-        RankingBlock(title="New Arrivals", badge="This Week",    items=new_items),
+        RankingBlock(title="New Arrivals", badge="This Week",   items=new_items),
     ]
 
     return HomeResponse(
