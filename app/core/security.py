@@ -1,41 +1,49 @@
-from datetime import datetime, UTC, timedelta, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_bearer = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
+def create_access_token(sub: str, role: str, expires_minutes: Optional[int] = None) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_expire_minutes
+        minutes=expires_minutes or settings.access_token_expire_minutes
     )
-    to_encode.update({"exp": expire})
-    return jwt.encode(
-        to_encode,
-        settings.jwt_secret,
-        algorithm=settings.jwt_algorithm,
-    )
+    payload = {"sub": sub, "role": role, "exp": expire}
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def decode_access_token(token: str) -> dict:
+def get_current_user(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+) -> dict:
+    if creds is None:
+        raise HTTPException(status_code=401, detail="not authenticated")
     try:
         payload = jwt.decode(
-            token,
-            settings.jwt_secret,
-            algorithms=[settings.jwt_algorithm],
+            creds.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
         )
-        return payload
     except JWTError:
-        return {}
+        raise HTTPException(status_code=401, detail="invalid token")
+    return {"username": payload.get("sub"), "role": payload.get("role")}
+
+
+def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    """Base /admin guard: only admin or superadmin may pass."""
+    if user.get("role") not in ("admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="admin access required")
+    return user
