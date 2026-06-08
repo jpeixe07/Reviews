@@ -3,19 +3,16 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 
 from app.core.config import settings
-from app.db.models import DOCUMENT_MODELS
 
 client = None
 database = None
 
 def get_motor_client():
-    if settings.mongodb_tls:
-        return AsyncIOMotorClient(
-            settings.mongodb_url,
-            tls=True,
-            tlsCAFile=certifi.where(),
-        )
-    return AsyncIOMotorClient(settings.mongodb_url)
+    return AsyncIOMotorClient(
+        settings.mongodb_url,
+        tls=True,
+        tlsCAFile=certifi.where(),
+    )
 
 async def init_db(db=None):
     global client, database
@@ -28,5 +25,6 @@ async def init_db(db=None):
 
     await init_beanie(
         database=database,
-        document_models=DOCUMENT_MODELS,
+        document_models=[
+        ],
     )

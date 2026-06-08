@@ -1,30 +1,136 @@
-"""Authentication router.
+from fastapi import APIRouter, status, HTTPException
 
-Public login endpoint that exchanges credentials for a JWT. It lives in its own
-router (no `require_admin` guard) so it stays decoupled from `/admin/*`: removing
-it never affects the admin surface. The token it issues carries the `sub` and
-`role` claims that `get_current_user`/`require_admin` consume.
-"""
-
-from fastapi import APIRouter, HTTPException
-
-from app.core.security import create_access_token, verify_password
-from app.db.models import User
-from app.schemas.auth import LoginRequest, TokenResponse
+from app.schemas.user import (
+    MessageResponse,
+    TokenResponse,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+)
+from app.services.auth_service import AuthService
+from app.services.email_verification_service import EmailVerificationService
+from app.schemas.user import EmailTokenRequest, ResendVerificationRequest
+from fastapi.responses import HTMLResponse
+from app.schemas.password_reset import ForgotPasswordRequest, ResetPasswordRequest
+from app.services.password_reset_service import PasswordResetService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-INVALID_CREDENTIALS = "invalid credentials"
+
+def serialize_user(user):
+    return UserResponse(
+        name=user.name,
+        username=user.username,
+        email=user.email,
+        bio=user.bio,
+        avatar_url=user.avatar_url,
+        is_active=user.is_active,
+        is_verified=user.is_verified,
+        is_private=user.is_private,
+        created_at=user.created_at,
+    )
+
+
+@router.post(
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    response_model=UserResponse,
+)
+async def register(data: UserCreate):
+    user = await AuthService.register_user(data)
+    return serialize_user(user)
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest) -> TokenResponse:
-    user = await User.find_one(
-        {"$or": [{"username": body.username}, {"email": body.username}]}
-    )
-    # One generic error for every failure mode (unknown user, no password set,
-    # wrong password) so the response never reveals whether an account exists (RNF04).
-    if user is None or not user.password_hash or not verify_password(body.password, user.password_hash):
-        raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS)
-    token = create_access_token(sub=user.username, role=user.role)
-    return TokenResponse(access_token=token, role=user.role, username=user.username)
+async def login(data: UserLogin):
+    token = await AuthService.login_user(data)
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@router.get("/register/check", response_model=MessageResponse)
+async def register_check():
+    return {"message": "Auth router funcionando"}
+
+@router.post("/verify-email", response_model=MessageResponse)
+async def verify_email(data: EmailTokenRequest):
+    await EmailVerificationService.verify(data.token)
+    return {"message": "E-mail verificado com sucesso"}
+
+
+@router.post("/resend-verification-email", response_model=MessageResponse)
+async def resend_verification_email(data: ResendVerificationRequest):
+    await EmailVerificationService.resend(data.email)
+    return {"message": "E-mail de verificação reenviado com sucesso"}
+
+@router.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(data: ForgotPasswordRequest):
+    await PasswordResetService.request_reset(data.email)
+    return {
+        "message": "Se o e-mail estiver cadastrado, você receberá um link em instantes"
+    }
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(data: ResetPasswordRequest):
+    await PasswordResetService.reset_password(data.token, data.new_password)
+    return {"message": "Sua senha foi redefinida com sucesso!"}
+
+
+@router.get("/reset-password-link", response_class=HTMLResponse)
+async def reset_password_link(token: str):
+    try:
+        await PasswordResetService.validate_reset_token(token)
+        return f"""
+        <html>
+            <head><title>Link válido</title></head>
+            <body style="font-family: Arial, sans-serif; padding: 40px;">
+                <h2>Link de recuperação válido ✅</h2>
+                <p>Agora envie a nova senha para o endpoint de redefinição usando esse token.</p>
+                <p>Token:</p>
+                <code>{token}</code>
+            </body>
+        </html>
+        """
+    except HTTPException as e:
+        return HTMLResponse(
+            content=f"""
+            <html>
+                <head><title>Link inválido</title></head>
+                <body style="font-family: Arial, sans-serif; padding: 40px;">
+                    <h2>Não foi possível continuar ❌</h2>
+                    <p>{e.detail}</p>
+                    <p>Solicite um novo link de recuperação.</p>
+                </body>
+            </html>
+            """,
+            status_code=e.status_code,
+        )
+
+@router.get("/verify-email-link", response_class=HTMLResponse)
+async def verify_email_link(token: str):
+    try:
+        await EmailVerificationService.verify(token)
+        return """
+        <html>
+            <head><title>E-mail verificado</title></head>
+            <body style="font-family: Arial, sans-serif; padding: 40px;">
+                <h2>E-mail verificado com sucesso ✅</h2>
+                <p>Sua conta foi confirmada e você já pode fazer login.</p>
+            </body>
+        </html>
+        """
+    except HTTPException as e:
+        return HTMLResponse(
+            content=f"""
+            <html>
+                <head><title>Erro na verificação</title></head>
+                <body style="font-family: Arial, sans-serif; padding: 40px;">
+                    <h2>Não foi possível verificar o e-mail ❌</h2>
+                    <p>{e.detail}</p>
+                </body>
+            </html>
+            """,
+            status_code=e.status_code,
+        )
+
+    
