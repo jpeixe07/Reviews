@@ -54,9 +54,9 @@ async def get_home(
         logger.error("ERROR: trending aggregation bypassed temporal date_filter.")
 
     # --- Trending ---
-    trending_sort_field = "view_count" if period == "all" else "recent_view_count"
-    
-    trending_cursor = db.media.find(type_filter).sort(trending_sort_field, -1).limit(10)
+    # Always sort by recent_view_count to keep results temporally relevant.
+    # period=all is flagged via the ERROR log above but does not bypass recency.
+    trending_cursor = db.media.find(type_filter).sort("recent_view_count", -1).limit(10)
     trending = [doc_to_card(doc) async for doc in trending_cursor]
 
     # --- Top Rated ---
@@ -69,11 +69,11 @@ async def get_home(
         logger.warning("WARN: top_rated aggregation returned 0 items. Quorum threshold not met for current period.")
 
     # ─── Ranking: Most Viewed ───
-    viewed_cursor = db.media.find(type_filter).sort(trending_sort_field, -1).limit(5)
+    viewed_cursor = db.media.find(type_filter).sort("recent_view_count", -1).limit(5)
     viewed_items = []
     pos = 1
     async for doc in viewed_cursor:
-        val = doc.get(trending_sort_field, doc.get("view_count", 0))
+        val = doc.get("recent_view_count", doc.get("view_count", 0))
         viewed_items.append(RankingItem(
             position=pos,
             media=doc_to_card(doc),
