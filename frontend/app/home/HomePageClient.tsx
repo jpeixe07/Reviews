@@ -695,7 +695,7 @@ export default function HomePage() {
       {/* ── Back link ── */}
       <div style={{ paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
         <Link
-          href="/dashboard"
+          href="/admin/dashboard"
           className="btn secondary"
           style={{ fontSize: "0.85rem" }}
         >
